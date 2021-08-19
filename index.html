@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="initial-scale=1, max-width=720" />
+  <title>Pen and Paper Journal</title>
+  <style>
+    :root {
+      --sans-serif: -apple-system, BlinkMacSystemFont, "Avenir Next", Avenir, "Segoe UI", "Helvetica Neue", Helvetica, Ubuntu, Roboto, Noto, Arial, sans-serif;
+      --serif: "Iowan Old Style", "Apple Garamond", Baskerville, "Times New Roman", "Droid Serif", Times, "Source Serif Pro", serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    }
+
+    html {
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    body {
+      color: #333;
+      font-family: var(--sans-serif);
+      margin: 32px;
+    }
+
+    a:link {
+      color: #369;
+    }
+
+    a:visited {
+      color: #963;
+    }
+
+    button {
+      border: 2px solid #999;
+      border-radius: 4px;
+      background: #eee;
+      box-shadow: 0 3px 4px rgba(0,0,0,0.25);
+      color: #666;
+      cursor: pointer;
+      display: inline-block;
+      font-size: 16px;
+      font-weight: bold;
+      line-height: 1;
+      padding: 8px 16px;
+      text-transform: uppercase;
+      transition-duration: 200ms;
+    }
+
+    button:hover {
+      background: #fff;
+      border-color: #666;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: normal;
+      line-height: 30px;
+      text-align: center;
+    }
+
+    h2 {
+      margin-top: 48px;
+    }
+
+    aside,
+    footer,
+    header,
+    main {
+      margin: 80px auto;
+      max-width: 656px;
+    }
+
+    .page {
+      background: #f4f4f4;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      margin: 0;
+      padding: 20px;
+    }
+
+    .page.current {
+      background: #fff;
+    }
+
+    .timestamp {
+      color: #666;
+      font-size: 16px;
+      margin: 8px 0;
+    }
+
+    .entry {
+      font-family: var(--serif);
+      font-size: 20px;
+      line-height: 30px;
+      min-height: 60px;
+    }
+
+    .entry:focus {
+      outline: none;
+    }
+
+    .entry del {
+      text-decoration: 3px line-through;
+    }
+
+    .entry del del {
+      text-decoration: 4px wavy line-through;
+    }
+
+    .entry del del del {
+      background: #333;
+      text-decoration: none;
+    }
+
+    .entry u {
+      text-decoration: 2px underline;
+    }
+
+    .entry u u {
+      text-decoration: 3px underline;
+    }
+
+    .entry u u u {
+      text-decoration: 3px wavy underline;
+    }
+
+    .amp {
+      font-family: var(--serif);
+      font-weight: normal;
+    }
+
+    .subhead {
+      display: block;
+      font-size: 20px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Pen<b class="amp">&amp;</b>Paper <b class="subhead">A Tool For Journaling</b></h1>
+</header>
+<main id="journal" class="journal">
+  <noscript>
+    <div class="entry">
+      <p>This application uses JavaScript to provide a typing experience with some of the constraints of writing with pen on paper. Your browser does not have JavaScript enabled. Please enable it to use this functionality.</p>
+    </div>
+  </noscript>
+</main>
+<script>
+  const journal = document.getElementById("journal");
+  // load sessions
+  let sessions = localStorage.getItem("sessions");
+  if (typeof sessions === "string") {
+    try {
+      sessions = JSON.parse(sessions);
+    } catch (e) {
+      sessions = [];
+    }
+  }
+  if (!Array.isArray(sessions)) {
+    sessions = [];
+  }
+  // create a new session
+  const currentSession = {
+    date: Date.now(),
+    content: "",
+  };
+  sessions.push(currentSession);
+  // show sessions
+  sessions.forEach((session, index) => {
+    const timestamp = document.createElement("div");
+    timestamp.className = "timestamp";
+    if (index === sessions.length - 1) {
+      timestamp.innerHTML = "Today";
+    } else {
+      const date = new Date(session.date);
+      timestamp.innerHTML = date.toLocaleString({
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    }
+    const entry = document.createElement("div");
+    entry.className = "entry";
+    entry.innerHTML = session.content;
+    const page = document.createElement("div");
+    page.className = "page";
+    page.appendChild(timestamp);
+    page.appendChild(entry);
+    journal.appendChild(page);
+    if (index === sessions.length - 1) {
+      page.classList.add("current");
+      page.addEventListener("click", () => {
+        entry.focus();
+      });
+      entry.contentEditable = true;
+      entry.spellcheck = false;
+      entry.autofocus = true;
+      entry.addEventListener("input", event => {
+        currentSession.content = event.target.innerHTML;
+        localStorage.setItem("sessions", JSON.stringify(sessions));
+      });
+      entry.addEventListener("beforeinput", event => {
+        const normalInputTypes = ["insertText"];
+        if (!normalInputTypes.includes(event.inputType)) {
+          event.preventDefault();
+        }
+        const lineBreakInputTypes = ["insertLineBreak", "insertParagraph"];
+        if (lineBreakInputTypes.includes(event.inputType)) {
+          event.target.appendChild(document.createElement("br"));
+        }
+        let formattingTag;
+        const formattingInputTypes = ["formatBold", "formatItalic", "formatUnderline"];
+        if (formattingInputTypes.includes(event.inputType)) {
+          formattingTag = "u";
+        }
+        if (event.inputType.startsWith("delete") || event.inputType === "formatStrikeThrough") {
+          formattingTag = "del";
+        }
+        if (formattingTag) {
+          const targetRanges = event.getTargetRanges();
+          if (targetRanges.length === 1) {
+            const staticRange = targetRanges[0];
+            const formatRange = document.createRange();
+            formatRange.setStart(staticRange.startContainer, staticRange.startOffset);
+            formatRange.setEnd(staticRange.endContainer, staticRange.endOffset);
+            const contents = formatRange.extractContents();
+            const formattedElement = document.createElement(formattingTag);
+            formatRange.insertNode(formattedElement);
+            formattedElement.appendChild(contents);
+          }
+        }
+        event.target.innerHTML = event.target.innerHTML.replace(/\u200B/g, "");
+        const lastNode = event.target.childNodes[event.target.childNodes.length - 1];
+        if (lastNode.nodeType === 3 && lastNode.length === 0 || lastNode.nodeType !== 3) {
+          event.target.insertAdjacentText("beforeend", "\u200B");
+        }
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        const inputRange = document.createRange();
+        inputRange.selectNodeContents(event.target);
+        selection.addRange(inputRange);
+        selection.collapseToEnd();
+      });
+    }
+  });
+</script>
+<aside>
+  <h2>How it works</h2>
+  <p>Text that you type into the journal cannot be changed. It is saved to your browser’s storage for this domain. Nothing that you type is sent to any servers the website owner controls.</p>
+  <p>The button below has been provided if you want to erase everything you’ve written.</p>
+  <noscript><p>Requires JavaScript.</p></noscript>
+  <p><button onclick="localStorage.clear(); history.go(0)">Erase Everything</button></p>
+  <h2>About</h2>
+  <p>This application is the result of an <a href="https://davidvandusen.com/2021-08-20-word-processor-that-works-like-pen-and-paper/">experiment by David VanDusen</a>.</p>
+</aside>
+<footer>
+  <p><small>© 2021 David VanDusen</small></p>
+</footer>
+</body>
+</html>

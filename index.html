@@ -244,7 +244,12 @@
   };
 
   const loadSessions = () => {
-    let sessions = localStorage.getItem('sessions');
+    let sessions;
+    try {
+      sessions = localStorage.getItem('sessions');
+    } catch (e) {
+      sessions = [];
+    }
     if (typeof sessions === 'string') {
       try {
         sessions = JSON.parse(sessions);
@@ -289,7 +294,11 @@
         entry.addEventListener("beforeinput", handleBeforeInput);
         entry.addEventListener("input", debounce(event => {
           currentSession.content = event.target.innerHTML.replace(/\uFEFF/g, "");
-          localStorage.setItem("sessions", JSON.stringify(sessions));
+          try {
+            localStorage.setItem("sessions", JSON.stringify(sessions));
+          } catch (e) {
+            // Don't worry about it
+          }
         }, 1000));
       }
     });

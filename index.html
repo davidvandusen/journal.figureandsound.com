@@ -171,140 +171,151 @@
     }
   };
 
-  const lineBreakInputTypes = ["insertLineBreak", "insertParagraph"];
+  class JournalSessionManager {
 
-  const deleteInputTypes = ["formatStrikeThrough", "deleteWordBackward", "deleteWordForward", "deleteSoftLineBackward", "deleteSoftLineForward", "deleteEntireSoftLine", "deleteHardLineBackward", "deleteHardLineForward", "deleteContent", "deleteContentBackward", "deleteContentForward"];
+    static lineBreakInputTypes = ["insertLineBreak", "insertParagraph"];
 
-  const annotateInputTypes = ["formatBold", "formatItalic", "formatUnderline"];
+    static deleteInputTypes = ["formatStrikeThrough", "deleteWordBackward", "deleteWordForward", "deleteSoftLineBackward", "deleteSoftLineForward", "deleteEntireSoftLine", "deleteHardLineBackward", "deleteHardLineForward", "deleteContent", "deleteContentBackward", "deleteContentForward"];
 
-  const handleBeforeInput = event => {
-    const targetRanges = event.getTargetRanges();
-    if (targetRanges.length === 0) {
-      event.preventDefault();
-      return;
-    }
-    const staticRange = targetRanges[0];
-    const inputRange = document.createRange();
-    inputRange.setStart(staticRange.startContainer, staticRange.startOffset);
-    inputRange.setEnd(staticRange.endContainer, staticRange.endOffset);
-    const isRangeCollapsed = inputRange.collapsed;
-    const isRangeSingleCharacter = Math.abs(inputRange.endOffset - inputRange.startOffset) === 1 && inputRange.startContainer === inputRange.endContainer;
-    const lastTextNode = getLastTextNode(event.target);
-    const isRangeEndOfInput = !lastTextNode || lastTextNode === inputRange.endContainer && lastTextNode.length === inputRange.endOffset;
-    const isTextInsertion = event.inputType === "insertText";
-    // In macOS when long-pressing a key to get a modified character, it swaps the typed character.
-    // The event is indistinguishable from selecting the last character and typing a replacement.
-    const isSwappingLastCharacter = isTextInsertion && isRangeSingleCharacter && isRangeEndOfInput;
-    const isTyping = isTextInsertion && isRangeCollapsed;
-    let shouldCollapseSelection = false;
-    if (!isTyping && !isSwappingLastCharacter) {
-      shouldCollapseSelection = true;
-      event.preventDefault();
-    }
-    if (lineBreakInputTypes.includes(event.inputType)) {
-      event.target.appendChild(document.createElement("br"));
-    }
-    let formattingTag;
-    if (annotateInputTypes.includes(event.inputType)) {
-      formattingTag = "u";
-    }
-    if (deleteInputTypes.includes(event.inputType)) {
-      formattingTag = "del";
-    }
-    if (formattingTag) {
-      const contents = inputRange.extractContents();
-      const formattedElement = document.createElement(formattingTag);
-      inputRange.insertNode(formattedElement);
-      formattedElement.appendChild(contents);
-    }
-    event.target.innerHTML = event.target.innerHTML.replace(/\uFEFF/g, "");
-    const lastNode = event.target.hasChildNodes() && event.target.childNodes[event.target.childNodes.length - 1];
-    // There will be no "last node" on the first keystroke because the input will have no children
-    if (lastNode) {
-      const isLastChildNodeText = lastNode && lastNode.nodeType === 3 && lastNode.length > 0;
-      if (isLastChildNodeText) {
-        const endOfTextRange = document.createRange();
-        const startOffset = isRangeSingleCharacter && !shouldCollapseSelection ? lastNode.length - 1 : lastNode.length;
-        endOfTextRange.setStart(lastNode, startOffset);
-        endOfTextRange.setEnd(lastNode, lastNode.length);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(endOfTextRange);
-      } else {
-        const caretText = document.createTextNode("\uFEFF");
-        event.target.appendChild(caretText);
-        const caretRange = document.createRange();
-        caretRange.setStart(caretText, 1);
-        caretRange.setEnd(caretText, 1);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(caretRange);
-      }
-    }
-  };
+    static annotateInputTypes = ["formatBold", "formatItalic", "formatUnderline"];
 
-  const loadSessions = () => {
-    let sessions;
-    try {
-      sessions = localStorage.getItem('sessions');
-    } catch (e) {
-      sessions = [];
-    }
-    if (typeof sessions === 'string') {
+    loadSessions = () => {
       try {
-        sessions = JSON.parse(sessions);
+        this.sessions = localStorage.getItem('sessions');
       } catch (e) {
-        sessions = [];
+        this.sessions = [];
       }
-    }
-    if (!Array.isArray(sessions)) {
-      sessions = [];
-    }
-    return sessions;
-  };
-
-  const initJournal = () => {
-    const journal = document.getElementById("journal");
-    const sessions = loadSessions();
-    const currentSession = {
-      date: Date.now(),
-      content: "",
+      if (typeof this.sessions === 'string') {
+        try {
+          this.sessions = JSON.parse(this.sessions);
+        } catch (e) {
+          this.sessions = [];
+        }
+      }
+      if (!Array.isArray(this.sessions)) {
+        this.sessions = [];
+      }
     };
-    sessions.push(currentSession);
-    sessions.forEach((session, sessionIndex) => {
-      const timestampElement = document.createElement("div");
-      timestampElement.className = "timestamp";
-      const isCurrentSession = sessionIndex === sessions.length - 1;
-      const timestampText = isCurrentSession ? 'Today' : new Date(session.date).toLocaleString();
-      timestampElement.insertAdjacentText("beforeend", timestampText);
-      const entry = document.createElement("div");
-      entry.className = "entry";
-      entry.innerHTML = session.content;
-      const page = document.createElement("div");
-      page.className = "page";
-      page.appendChild(timestampElement);
-      page.appendChild(entry);
-      journal.appendChild(page);
-      if (isCurrentSession) {
-        page.classList.add("current");
-        page.addEventListener("click", () => entry.focus());
-        entry.contentEditable = "true";
-        entry.spellcheck = false;
-        entry.autofocus = true;
-        entry.addEventListener("beforeinput", handleBeforeInput);
-        entry.addEventListener("input", debounce(event => {
-          currentSession.content = event.target.innerHTML.replace(/\uFEFF/g, "");
-          try {
-            localStorage.setItem("sessions", JSON.stringify(sessions));
-          } catch (e) {
-            // Don't worry about it
-          }
-        }, 1000));
-      }
-    });
-  };
 
-  initJournal();
+    saveSessions = debounce(() => {
+      this.currentSession.content = this.currentEntry.innerHTML.replace(/\uFEFF/g, "");
+      try {
+        localStorage.setItem("sessions", JSON.stringify(this.sessions));
+      } catch (e) {
+        // Don't worry about it
+      }
+    }, 1000);
+
+    initJournal = journalElement => {
+      this.loadSessions();
+      this.currentSession = {
+        date: Date.now(),
+        content: "",
+      };
+      this.sessions.push(this.currentSession);
+      this.sessions.forEach((session) => {
+        const timestampElement = document.createElement("div");
+        timestampElement.className = "timestamp";
+        const isCurrentSession = session === this.currentSession;
+        const timestampText = isCurrentSession ? 'Today' : new Date(session.date).toLocaleString();
+        timestampElement.insertAdjacentText("beforeend", timestampText);
+        const entry = document.createElement("div");
+        entry.className = "entry";
+        entry.innerHTML = session.content;
+        const page = document.createElement("div");
+        page.className = "page";
+        page.appendChild(timestampElement);
+        page.appendChild(entry);
+        journalElement.appendChild(page);
+        if (isCurrentSession) {
+          this.currentEntry = entry;
+          page.classList.add("current");
+          page.addEventListener("click", () => entry.focus());
+          entry.contentEditable = "true";
+          entry.spellcheck = false;
+          entry.autofocus = true;
+          entry.addEventListener("beforeinput", this.handleBeforeInput);
+          entry.addEventListener("input", this.handleInput);
+        }
+      });
+    };
+
+    handleInput = () => {
+      this.saveSessions();
+    };
+
+    handleBeforeInput = event => {
+      const targetRanges = event.getTargetRanges();
+      if (targetRanges.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const staticRange = targetRanges[0];
+      const inputRange = document.createRange();
+      inputRange.setStart(staticRange.startContainer, staticRange.startOffset);
+      inputRange.setEnd(staticRange.endContainer, staticRange.endOffset);
+      const isRangeCollapsed = inputRange.collapsed;
+      const isRangeSingleCharacter = Math.abs(inputRange.endOffset - inputRange.startOffset) === 1 && inputRange.startContainer === inputRange.endContainer;
+      const lastTextNode = getLastTextNode(event.target);
+      const isRangeEndOfInput = !lastTextNode || lastTextNode === inputRange.endContainer && lastTextNode.length === inputRange.endOffset;
+      const isTextInsertion = event.inputType === "insertText";
+      // In macOS when long-pressing a key to get a modified character, it swaps the typed character.
+      // The event is indistinguishable from selecting the last character and typing a replacement.
+      const isSwappingLastCharacter = isTextInsertion && isRangeSingleCharacter && isRangeEndOfInput;
+      const isTyping = isTextInsertion && isRangeCollapsed;
+      let shouldCollapseSelection = false;
+      if (!isTyping && !isSwappingLastCharacter) {
+        shouldCollapseSelection = true;
+        event.preventDefault();
+      }
+      if (JournalSessionManager.lineBreakInputTypes.includes(event.inputType)) {
+        event.target.appendChild(document.createElement("br"));
+        // Since the default is prevented, ensure that the newline is saved
+        this.saveSessions();
+      }
+      let formattingTag;
+      if (JournalSessionManager.annotateInputTypes.includes(event.inputType)) {
+        formattingTag = "u";
+      }
+      if (JournalSessionManager.deleteInputTypes.includes(event.inputType)) {
+        formattingTag = "del";
+      }
+      if (formattingTag) {
+        const contents = inputRange.extractContents();
+        const formattedElement = document.createElement(formattingTag);
+        inputRange.insertNode(formattedElement);
+        formattedElement.appendChild(contents);
+        // Since the default is prevented, ensure that the formatting is saved
+        this.saveSessions();
+      }
+      event.target.innerHTML = event.target.innerHTML.replace(/\uFEFF/g, "");
+      const lastNode = event.target.hasChildNodes() && event.target.childNodes[event.target.childNodes.length - 1];
+      // There will be no "last node" on the first keystroke because the input will have no children
+      if (lastNode) {
+        const isLastChildNodeText = lastNode && lastNode.nodeType === 3 && lastNode.length > 0;
+        if (isLastChildNodeText) {
+          const endOfTextRange = document.createRange();
+          const startOffset = isRangeSingleCharacter && !shouldCollapseSelection ? lastNode.length - 1 : lastNode.length;
+          endOfTextRange.setStart(lastNode, startOffset);
+          endOfTextRange.setEnd(lastNode, lastNode.length);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(endOfTextRange);
+        } else {
+          const caretText = document.createTextNode("\uFEFF");
+          event.target.appendChild(caretText);
+          const caretRange = document.createRange();
+          caretRange.setStart(caretText, 1);
+          caretRange.setEnd(caretText, 1);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(caretRange);
+        }
+      }
+    };
+  }
+
+  new JournalSessionManager().initJournal(document.getElementById("journal"));
 </script>
 <aside>
   <h2>How it works</h2>
@@ -313,7 +324,7 @@
   <noscript><p>Requires JavaScript.</p></noscript>
   <p><button onclick="localStorage.clear(); history.go(0)">Erase Everything</button></p>
   <h2>About</h2>
-  <p>This application is the result of an <a href="https://davidvandusen.com/2021-08-23-word-processor-that-works-like-pen-and-paper/">experiment by David VanDusen</a>.</p>
+  <p>This application is an <a href="https://davidvandusen.com/2021-08-23-word-processor-that-works-like-pen-and-paper/">experiment by David VanDusen</a>.</p>
 </aside>
 <footer>
   <p><small>© 2021 David VanDusen</small></p>
